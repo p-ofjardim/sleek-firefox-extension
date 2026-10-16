@@ -1,6 +1,7 @@
-import { AttributeEntry, TodoObject } from "@sleek-types";
+import { AttributeEntry, TodoObject, SettingStore, Filters } from "@sleek-types";
 import colorsData from "../../resources/colors.json";
 import { BrowserStorageAdapter } from "./BrowserStorageAdapter";
+import { runMigrations, SCHEMA_VERSIONS } from "../shared/storageMigrations";
 
 /**
  * Bridge exposing `window.api` for the Firefox extension web build,
@@ -43,7 +44,19 @@ export class MemoryStorageArea {
 export const storageArea = new MemoryStorageArea();
 export const storage = new BrowserStorageAdapter(storageArea);
 
-void storage.load();
+// Load storage and apply migrations
+void (async () => {
+  await storage.load();
+  
+  // Apply migrations to ensure schema is up to date
+  const settingsVersion = storage.getConfig<string>("__internal__?.migrations?.version");
+  if (!settingsVersion || settingsVersion !== SCHEMA_VERSIONS.settings) {
+    runMigrations(storage, "settings", null, SCHEMA_VERSIONS.settings);
+    runMigrations(storage, "filters", null, SCHEMA_VERSIONS.filters);
+    runMigrations(storage, "colors", null, SCHEMA_VERSIONS.colors);
+    await storage.flush();
+  }
+})();
 
 const todoLines: string[] = [
   "(A) Pay rent +home @finance due:2025-01-05",
@@ -51,7 +64,7 @@ const todoLines: string[] = [
   "x 2024-12-30 Call the bank @finance",
 ];
 
-const defaultConfig: Record<string, unknown> = {
+const defaultConfig: SettingStore = {
   appendCreationDate: true,
   convertRelativeToAbsoluteDates: false,
   useHumanFriendlyDates: false,
@@ -91,7 +104,18 @@ const defaultConfig: Record<string, unknown> = {
   windowMaximized: false,
   windowPosition: { x: 0, y: 0 },
   shouldUseDarkColors: window.matchMedia?.("(prefers-color-scheme: dark)")
-    ?.matches,
+    ?.matches ?? false,
+  isDrawerOpen: false,
+  isNavigationOpen: true,
+  isSearchOpen: false,
+  accordionOpenState: [true, true, true, false, false, false, false, false, false],
+  showFileTabs: true,
+  customStylesPath: "",
+  excludeLinesWithPrefix: [],
+  chokidarOptions: { awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 100 } },
+  __internal__: { migrations: { version: "0.0.0" } },
+  channel: "WebExtension",
+  anonymousUserId: crypto.randomUUID?.() ?? "",
 };
 
 const patterns = {
@@ -174,42 +198,43 @@ function buildTodoObjects(): TodoObject[] {
 
 const mockApi = {
   store: {
-    getConfig(key?: string): Record<string, unknown> {
-      const value = storage.getConfig(key);
+    getConfig<T = SettingStore>(key?: string): T {
+      const value = storage.getConfig<T>(key);
       if (key) {
-        return (value ?? defaultConfig[key] ?? null) as Record<string, unknown>;
+        return (value ?? defaultConfig[key as keyof SettingStore] ?? null) as T;
       }
-      return { ...defaultConfig, ...(value as Record<string, unknown>) };
+      return { ...defaultConfig, ...(value as SettingStore) } as T;
     },
+    setConfig<K extends keyof SettingStore>(property: K, value: SettingStore[K]): void;
+    setConfig(property: string, value: unknown): void;
     setConfig(property: string, value: unknown): void {
       storage.setConfig(property, value);
       emit("settingsChanged", {
         ...defaultConfig,
-        ...(storage.getConfig() as Record<string, unknown>),
+        ...(storage.getConfig() as SettingStore),
       });
     },
+    setFilters<K extends keyof Filters>(property: K, value: Filters[K]): void;
+    setFilters(property: string, value: unknown): void;
     setFilters(property: string, value: unknown): void {
       storage.setFilters(property, value);
     },
-    getFilters(key?: string): Record<string, unknown> {
-      const value = storage.getFilters(key);
+    getFilters<T = Filters>(key?: string): T {
+      const value = storage.getFilters<T>(key);
       if (key) {
-        return (value ?? null) as Record<string, unknown>;
+        return (value ?? null) as T;
       }
-      return (value ?? {}) as Record<string, unknown>;
+      return (value ?? {}) as T;
     },
-    getColors(key?: string): Record<string, unknown> {
+    getColors<T = unknown>(key?: string): T {
       // Colors.ts reads the whole palette via getColors("colors")
       if (!key || key === "colors") {
-        return (storage.getColors("colors") ?? colorsData) as Record<
-          string,
-          unknown
-        >;
+        return (storage.getColors("colors") ?? colorsData) as T;
       }
       const colors = storage.getColors("colors") as Record<string, unknown>;
-      return { [key]: colors?.[key] } as Record<string, unknown>;
+      return { [key]: colors?.[key as string] } as T;
     },
-    notifiedTodoObjects(value: unknown): void {
+    notifiedTodoObjects(value: string[]): void {
       storage.setNotifiedTodoObjects(value);
     },
   },
@@ -237,7 +262,7 @@ const mockApi = {
               ).length,
             },
             attributes: buildAttributes(),
-            filters: (storage.getFilters() ?? {}) as Record<string, unknown>,
+            filters: (storage.getFilters() ?? {}) as Filters,
             todoData: [
               {
                 title: null,

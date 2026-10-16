@@ -90,6 +90,16 @@ adapterContract("BrowserStorageAdapter (polyfill)", async () => {
   return adapter;
 });
 
+// Helper to ensure BrowserStorageAdapter is loaded before use
+async function withLoadedAdapter(
+  makeAdapter: () => BrowserStorageAdapter,
+  testFn: (adapter: BrowserStorageAdapter) => Promise<void>,
+): Promise<void> {
+  const adapter = makeAdapter();
+  await adapter.load();
+  await testFn(adapter);
+}
+
 describe("storage migrations", () => {
   it("creates a fresh settings schema from scratch", () => {
     const adapter = new InMemoryStorageAdapter();
@@ -141,7 +151,7 @@ describe("BrowserStorageAdapter persistence", () => {
     const adapter = new BrowserStorageAdapter(area);
     await adapter.load();
     adapter.setConfig("zoom", 125);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await adapter.flush();
     const stored = area.dump();
     const settings = stored.settings as Record<string, unknown>;
     expect(settings.zoom).toBe(125);

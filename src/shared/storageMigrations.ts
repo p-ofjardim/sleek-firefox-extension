@@ -121,10 +121,10 @@ export const colorsMigrations: Record<string, MigrationFn> = {
 };
 
 export const SCHEMA_VERSIONS = {
-  settings: Object.keys(settingsMigrations),
-  filters: Object.keys(filtersMigrations),
-  colors: Object.keys(colorsMigrations),
-};
+  settings: Object.keys(settingsMigrations).at(-1)!,
+  filters: Object.keys(filtersMigrations).at(-1)!,
+  colors: Object.keys(colorsMigrations).at(-1)!,
+} as const;
 
 function compareVersions(a: string, b: string): number {
   const pa = a.split(/[-.]/).map(Number);

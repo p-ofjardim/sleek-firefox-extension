@@ -1,4 +1,5 @@
 import { StorageAdapter } from "../shared/StorageAdapter";
+import { SettingStore, Filters } from "@sleek-types";
 
 /**
  * StorageAdapter wrapping the current desktop stores (ROADMAP Phase 1).
@@ -29,38 +30,44 @@ export class ElectronStorageAdapter implements StorageAdapter {
     this.stores = stores;
   }
 
-  getConfig(key?: string): unknown {
-    if (key === undefined) return this.stores.settings.get();
-    return this.stores.settings.get(key);
+  getConfig<T = SettingStore>(key?: string): T {
+    if (key === undefined) return this.stores.settings.get() as T;
+    return this.stores.settings.get(key) as T;
   }
 
+  setConfig<K extends keyof SettingStore>(property: K, value: SettingStore[K]): void;
+  setConfig(property: string, value: unknown): void;
   setConfig(property: string, value: unknown): void {
     this.stores.settings.set(property, value);
   }
 
-  getFilters(key?: string): unknown {
-    if (key === undefined) return this.stores.filters.get();
-    return this.stores.filters.get(key);
+  getFilters<T = Filters>(key?: string): T {
+    if (key === undefined) return this.stores.filters.get() as T;
+    return this.stores.filters.get(key) as T;
   }
 
+  setFilters<K extends keyof Filters>(property: K, value: Filters[K]): void;
+  setFilters(property: string, value: unknown): void;
   setFilters(property: string, value: unknown): void {
     this.stores.filters.set(property, value);
   }
 
-  getColors(key?: string): unknown {
-    if (key === undefined) return this.stores.colors.get();
-    return this.stores.colors.get(key);
+  getColors<T = unknown>(key?: string): T {
+    if (key === undefined) return this.stores.colors.get() as T;
+    return this.stores.colors.get(key) as T;
   }
 
+  setColors<K extends string>(property: K, value: unknown): void;
+  setColors(property: string, value: unknown): void;
   setColors(property: string, value: unknown): void {
     this.stores.colors.set(property, value);
   }
 
-  getNotifiedTodoObjects(): unknown {
-    return this.stores.notifications.get("notificationHashes");
+  getNotifiedTodoObjects(): string[] {
+    return (this.stores.notifications.get("notificationHashes") as string[]) ?? [];
   }
 
-  setNotifiedTodoObjects(value: unknown): void {
+  setNotifiedTodoObjects(value: string[]): void {
     this.stores.notifications.set("notificationHashes", value);
   }
 }
