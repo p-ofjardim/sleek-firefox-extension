@@ -2,24 +2,27 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 
-// Mock window.api for renderer tests
-Object.defineProperty(window, "api", {
-  value: {
-    store: {
-      getConfig: vi.fn(),
-      setConfig: vi.fn(),
-      getFilters: vi.fn(),
-      setFilters: vi.fn(),
+// Mock window.api for renderer tests; skipped when the test file already
+// installed its own window.api (e.g. src/extension/mockApi.ts)
+if (!(window as { api?: unknown }).api) {
+  Object.defineProperty(window, "api", {
+    value: {
+      store: {
+        getConfig: vi.fn(),
+        setConfig: vi.fn(),
+        getFilters: vi.fn(),
+        setFilters: vi.fn(),
+      },
+      ipcRenderer: {
+        send: vi.fn(),
+        on: vi.fn(),
+        off: vi.fn(),
+        invoke: vi.fn(),
+      },
     },
-    ipcRenderer: {
-      send: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-      invoke: vi.fn(),
-    },
-  },
-  writable: true,
-});
+    writable: true,
+  });
+}
 
 afterEach(() => {
   cleanup();
