@@ -1,65 +1,66 @@
-# sleek
+# sleek-firefox-extension
 
-![image](https://github.com/ransome1/sleek/assets/11188741/304d2da2-e8bd-4901-9d12-04a0f5426317)
+sleek-firefox-extension is a community fork of [sleek](https://github.com/ransome1/sleek), the open-source (FOSS) todo manager based on the [todo.txt syntax](https://github.com/todotxt/todo.txt). The goal of this fork is to bring the sleek experience to the browser as a **Firefox extension (WebExtension)**.
 
-### sleek is an open-source (FOSS) todo manager based on the todo.txt syntax. It's available for Windows, macOS and Linux
+The UI (React) and the todo.txt domain logic (parsing, filters, recurrence, grouping, sorting) are reused from the original project. The Electron desktop shell is replaced by a WebExtension shell: data is stored in `browser.storage.local`, with import/export of plain `todo.txt` / `done.txt` files to stay compatible with other todo.txt apps.
 
-sleek is an open-source (FOSS) todo manager based on the [todo.txt syntax](https://github.com/todotxt/todo.txt). Stripped down to only the most necessary features, and with a clean and simple interface, sleek aims to help you focus on getting things done.
+## Status
 
-All classic todo.txt attributes are supported and enhanced by additional features. Creating todos is straightforward, and tag-based filtering in tandem with highly customisable grouping and smart full-text search allows for rapid information retrieval. Completed todos can be hidden or archived into separate done.txt files. Easy integration with other todo.txt apps is facilitated by continuously scanning todo.txt files for changes.
+This fork is in an early stage. The WebExtension port is being implemented following [ROADMAP.md](ROADMAP.md). The Electron desktop application builds and runs from this repository unchanged.
 
-sleek is available for Windows, macOS and Linux, and in several languages. [Screenshots can be found here](https://github.com/ransome1/sleek/wiki/Screenshots). For more detailed information, [please refer to the sleek wiki](https://github.com/ransome1/sleek/wiki).
+## Key differences from sleek desktop
 
-### ❤️ Sponsor sleek
+| Aspect        | sleek (desktop)                                            | sleek-firefox-extension                     |
+| ------------- | ---------------------------------------------------------- | ------------------------------------------- |
+| Runtime       | Electron app for Windows, macOS, Linux                     | Firefox WebExtension                        |
+| Storage       | Reads/writes `todo.txt` files on disk, watches for changes | Stores todo data in `browser.storage.local` |
+| File sync     | Live, via filesystem watcher                               | Via explicit import/export of `.txt` files  |
+| Settings      | `electron-store`                                           | `browser.storage.local`                     |
+| Notifications | Native OS notifications                                    | `browser.notifications`                     |
 
-Pushing sleek to the Apple and Microsoft app stores creates annual costs. You can help covering these by sponsoring the project [here on GitHub](https://github.com/sponsors/ransome1) or by [donating using liberapay](https://liberapay.com/ransome1/donate)
+## Development setup
 
-<noscript><a href="https://liberapay.com/ransome1/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a></noscript>
+Prerequisites: latest Git and Node.js (`>= 26`).
 
-### 👩🏾‍💻 This project needs your support
+```bash
+git clone https://github.com/p-ofjardim/sleek-firefox-extension.git
+cd sleek-firefox-extension
+npm install
+```
 
-sleek's backlog is becoming increasingly populated, yet our capacity is limited. If you are skilled in `React`, `TypeScript`, `Electron`, or `vitest` you can support this project. We need to continue refactoring the code, build reliable test coverage, and reduce bugs. Here you'll find our backlog: https://github.com/users/ransome1/projects/3. For those interested, all necessary information about contributing to the project is kept and updated in the [CONTRIBUTING.md](https://github.com/ransome1/sleek/blob/main/CONTRIBUTING.md).
+### Desktop app (Electron)
 
-### Get sleek from Apple Mac App Store
+The desktop app is unchanged and remains the baseline:
 
-<a href="https://apps.apple.com/de/app/sleek-todo-txt-manager/id1614704209?mt=12&itscg=30200&itsct=apps_box_badge&mttnsubad=1614704209" style="display: inline-block;">
-<img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1648771200" alt="Download on the App Store" style="vertical-align: middle; object-fit: contain;" width='180' />
-</a>
+```bash
+npm run dev          # start the dev server
+npm run build        # build the app
+npm test             # run unit tests (vitest)
+```
 
-### Get sleek from Microsoft Store
+### Firefox extension (once implemented)
 
-<a href="//www.microsoft.com/store/apps/9NWM2WXF60KR?cid=storebadge&ocid=badge" target="blank"><img src='https://developer.microsoft.com/store/badges/images/English_get-it-from-MS.png' alt='English badge' width='180'/></a>
+The extension will be loaded as a temporary add-on during development:
 
-### Get sleek from Snap Store
+1. Build the extension target (see [ROADMAP.md](ROADMAP.md) for current state).
+2. Open `about:debugging#/runtime/this-firefox` in Firefox.
+3. Click **Load Temporary Add-on** and select the built `manifest.json`.
 
-[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/sleek)
+Packaging uses [`web-ext`](https://github.com/mozilla/web-ext) and publication targets [addons.mozilla.org](https://addons.mozilla.org).
 
-Install sleek from [Snap Store](https://snapcraft.io/sleek) using: `sudo snap install sleek`
+## Data and privacy
 
-### Get sleek from Flathub
+Tasks live inside the extension's local storage in your Firefox profile. Nothing is sent anywhere; use the import/export feature to exchange `todo.txt` files with other applications. See [PRIVACY.md](PRIVACY.md) and note that the analytics (Matomo) present in the desktop app are removed in the extension build.
 
-<a href="https://flathub.org/apps/details/com.github.ransome1.sleek" target="blank"><img width='180' alt="Download on Flathub" src="https://flathub.org/assets/badges/flathub-badge-en.png"/></a>
+## Documentation
 
-Install sleek from [Flathub](https://flathub.org/apps/details/com.github.ransome1.sleek) using: `flatpak install flathub com.github.ransome1.sleek`
+- [ROADMAP.md](ROADMAP.md) — implementation plan for the Firefox extension port
+- [CONTRIBUTING.md](CONTRIBUTING.md) — how to contribute to this fork
+- [CHANGELOG.md](CHANGELOG.md) — changes in this fork
+- [PRIVACY.md](PRIVACY.md) — privacy policy
 
-Run it using: `flatpak run com.github.ransome1.sleek`
+## Credits and license
 
-### Get sleek from Homebrew
+This project is a fork of [sleek](https://github.com/ransome1/sleek) by [Robin Ahle](https://github.com/ransome1), licensed under the [MIT License](LICENSE). sleek-firefox-extension is licensed under the same MIT License; the original copyright notice is preserved in [LICENSE](LICENSE).
 
-Install sleek from [Homebrew](https://formulae.brew.sh/cask/sleek-app).
-
-`brew install --cask sleek-app`
-
-### Get sleek from Arch User Repository
-
-Install sleek from [AUR](https://aur.archlinux.org/packages/sleek/).
-
-1. Setup [Yay](https://github.com/Jguer/yay#installation)
-2. `yay -S sleek`
-
-### Download sleek
-
-You can download sleek for Windows, macOS and Linux from
-
-- [SourceForge](https://sourceforge.net/p/sleek/)
-- [GitHub](https://github.com/ransome1/sleek/releases/latest)
+All credit for the original application goes to Robin Ahle. If you like the desktop app, consider [sponsoring the original project](https://github.com/sponsors/ransome1) or [donating via Liberapay](https://liberapay.com/ransome1/donate).
