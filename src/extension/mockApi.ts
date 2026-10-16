@@ -1,11 +1,15 @@
-import { AttributeEntry, TodoObject } from "@sleek-types";
+import { AttributeEntry, TodoObject, SettingStore, Filters } from "@sleek-types";
 import colorsData from "../../resources/colors.json";
+import { BrowserStorageAdapter } from "./BrowserStorageAdapter";
+import { runMigrations, SCHEMA_VERSIONS } from "../shared/storageMigrations";
 
 /**
- * Mock of the desktop `window.api` bridge (src/preload/index.ts) for the
- * Firefox extension web build. Implements the same contract with in-memory
- * data. The extension storage adapter (ROADMAP Phase 1) will replace the
- * persistence behind this same shape.
+ * Bridge exposing `window.api` for the Firefox extension web build,
+ * same contract as src/preload/index.ts. Persistence goes through the
+ * BrowserStorageAdapter (ROADMAP Phase 1); in the extension it wraps
+ * browser.storage.local, in the web build/tests it wraps the in-memory
+ * polyfill below. The in-memory seed data stands in for the todo.txt
+ * file content until import/export lands (Phase 2).
  */
 
 type Listener = (...args: unknown[]) => void;
@@ -21,22 +25,46 @@ const emit = (name: string, ...args: unknown[]): void => {
   channel(name).forEach((listener) => listener(...args));
 };
 
+export class MemoryStorageArea {
+  private data: Record<string, unknown> = {};
+  async get(keys?: string[] | string | null): Promise<Record<string, unknown>> {
+    if (keys === null || keys === undefined) return { ...this.data };
+    const list = Array.isArray(keys) ? keys : [keys];
+    const result: Record<string, unknown> = {};
+    for (const key of list) {
+      if (key in this.data) result[key] = this.data[key];
+    }
+    return result;
+  }
+  async set(items: Record<string, unknown>): Promise<void> {
+    this.data = { ...this.data, ...items };
+  }
+}
+
+export const storageArea = new MemoryStorageArea();
+export const storage = new BrowserStorageAdapter(storageArea);
+
+// Load storage and apply migrations
+void (async () => {
+  await storage.load();
+  
+  // Apply migrations to ensure schema is up to date
+  const settingsVersion = storage.getConfig<string>("__internal__?.migrations?.version");
+  if (!settingsVersion || settingsVersion !== SCHEMA_VERSIONS.settings) {
+    runMigrations(storage, "settings", null, SCHEMA_VERSIONS.settings);
+    runMigrations(storage, "filters", null, SCHEMA_VERSIONS.filters);
+    runMigrations(storage, "colors", null, SCHEMA_VERSIONS.colors);
+    await storage.flush();
+  }
+})();
+
 const todoLines: string[] = [
   "(A) Pay rent +home @finance due:2025-01-05",
   "Read about WebExtensions +learning @reading due:2025-01-10",
   "x 2024-12-30 Call the bank @finance",
 ];
 
-let filters: Record<string, unknown> = {};
-let notifiedTodoObjects: unknown[] = [];
-
-void notifiedTodoObjects;
-
-const colors: Record<string, unknown> = {
-  colors: colorsData as unknown as Record<string, unknown>,
-};
-
-let config: Record<string, unknown> = {
+const defaultConfig: SettingStore = {
   appendCreationDate: true,
   convertRelativeToAbsoluteDates: false,
   useHumanFriendlyDates: false,
@@ -76,7 +104,18 @@ let config: Record<string, unknown> = {
   windowMaximized: false,
   windowPosition: { x: 0, y: 0 },
   shouldUseDarkColors: window.matchMedia?.("(prefers-color-scheme: dark)")
-    ?.matches,
+    ?.matches ?? false,
+  isDrawerOpen: false,
+  isNavigationOpen: true,
+  isSearchOpen: false,
+  accordionOpenState: [true, true, true, false, false, false, false, false, false],
+  showFileTabs: true,
+  customStylesPath: "",
+  excludeLinesWithPrefix: [],
+  chokidarOptions: { awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 100 } },
+  __internal__: { migrations: { version: "0.0.0" } },
+  channel: "WebExtension",
+  anonymousUserId: crypto.randomUUID?.() ?? "",
 };
 
 const patterns = {
@@ -159,34 +198,44 @@ function buildTodoObjects(): TodoObject[] {
 
 const mockApi = {
   store: {
-    getConfig(key?: string): Record<string, unknown> {
+    getConfig<T = SettingStore>(key?: string): T {
+      const value = storage.getConfig<T>(key);
       if (key) {
-        return { [key]: config[key] } as Record<string, unknown>;
+        return (value ?? defaultConfig[key as keyof SettingStore] ?? null) as T;
       }
-      return { ...config } as Record<string, unknown>;
+      return { ...defaultConfig, ...(value as SettingStore) } as T;
     },
+    setConfig<K extends keyof SettingStore>(property: K, value: SettingStore[K]): void;
+    setConfig(property: string, value: unknown): void;
     setConfig(property: string, value: unknown): void {
-      config = { ...config, [property]: value };
-      emit("settingsChanged", { ...config });
+      storage.setConfig(property, value);
+      emit("settingsChanged", {
+        ...defaultConfig,
+        ...(storage.getConfig() as SettingStore),
+      });
     },
+    setFilters<K extends keyof Filters>(property: K, value: Filters[K]): void;
+    setFilters(property: string, value: unknown): void;
     setFilters(property: string, value: unknown): void {
-      filters = { ...filters, [property]: value };
+      storage.setFilters(property, value);
     },
-    getFilters(key?: string): Record<string, unknown> {
+    getFilters<T = Filters>(key?: string): T {
+      const value = storage.getFilters<T>(key);
       if (key) {
-        return { [key]: filters[key] } as Record<string, unknown>;
+        return (value ?? null) as T;
       }
-      return { ...filters };
+      return (value ?? {}) as T;
     },
-    getColors(key?: string): Record<string, unknown> {
+    getColors<T = unknown>(key?: string): T {
       // Colors.ts reads the whole palette via getColors("colors")
       if (!key || key === "colors") {
-        return colors.colors;
+        return (storage.getColors("colors") ?? colorsData) as T;
       }
-      return { [key]: colors.colors[key] } as Record<string, unknown>;
+      const colors = storage.getColors("colors") as Record<string, unknown>;
+      return { [key]: colors?.[key as string] } as T;
     },
-    notifiedTodoObjects(value: unknown): void {
-      notifiedTodoObjects = Array.isArray(value) ? value : [];
+    notifiedTodoObjects(value: string[]): void {
+      storage.setNotifiedTodoObjects(value);
     },
   },
   deleteFilterValue(params: { attrType: string; valueToDelete: string }): void {
@@ -213,7 +262,7 @@ const mockApi = {
               ).length,
             },
             attributes: buildAttributes(),
-            filters: { ...filters },
+            filters: (storage.getFilters() ?? {}) as Filters,
             todoData: [
               {
                 title: null,

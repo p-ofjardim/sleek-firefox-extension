@@ -4,6 +4,8 @@
     "src/renderer/env.d.ts",
     "src/renderer/**/*",
     "src/renderer/**/*.tsx",
+    "src/shared/**/*",
+    "src/extension/**/*",
     "src/preload/*.d.ts",
     "src/preload/electron.d.ts",
     "src/@types/**/*",
